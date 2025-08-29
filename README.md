@@ -64,32 +64,9 @@ note-app/
 - Node.js 18 or higher
 - npm or yarn
 
-### Installation
+### Running the Application
 
-1. **Clone the repository**
-
-   ```bash
-   git clone <repository-url>
-   cd note-app
-   ```
-
-2. **Install dependencies (one-time setup)**
-
-   ```bash
-   # Backend dependencies
-   cd server
-   python3.11 -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   cd ..
-
-   # Frontend dependencies
-   cd client
-   npm install
-   cd ..
-   ```
-
-3. **Set up environment variables**
+1. **Set up environment variables**
 
    ```bash
    # Create .env file in the root directory
@@ -99,28 +76,15 @@ note-app/
    echo "GEMINI_API_KEY=your_actual_api_key_here" >> .env
    ```
 
-### Running the Application
+2. **Run the server and client from separate terminals**
 
-**Option 1: Run Both (Recommended)**
-Open two terminal windows and run:
+   ```bash
+   # Terminal 1 - Backend
+   ./run-server.sh
 
-```bash
-# Terminal 1 - Backend
-./run-server.sh
-
-# Terminal 2 - Frontend
-./run-client.sh
-```
-
-**Option 2: Run Separately**
-
-```bash
-# Backend only
-./run-server.sh
-
-# Frontend only
-./run-client.sh
-```
+   # Terminal 2 - Frontend
+   ./run-client.sh
+   ```
 
 ### Access the Application
 
