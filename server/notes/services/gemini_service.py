@@ -1,6 +1,7 @@
 import json
 from typing import Dict, Any, Optional
 from pydantic import ValidationError
+from datetime import datetime, timezone
 import google.generativeai as genai
 from ..models import Note, LLMEnrichment, Sentiment
 from ..interfaces import LLMServiceProtocol
@@ -40,10 +41,10 @@ class GeminiService(LLMServiceProtocol):
         for _attempt in range(MAX_ATTEMPTS):
             try:
                 # Generate response with structured output
-                response = await self._call_gemini_api_structured(prompt, json_schema, last_error)
+                json_str = await self._call_gemini_api_structured(prompt, json_schema, last_error)
                 
                 # Parse and validate the response
-                enrichments = self._parse_structured_response(response)
+                enrichments = self._parse_structured_response(json_str)
                 
                 return enrichments
                 
@@ -83,7 +84,7 @@ Note: Do not include enrichment_timestamp or llm_model fields - these will be se
         """Generate JSON schema from the LLMEnrichment Pydantic model."""
         return LLMEnrichment.model_json_schema()
     
-    async def _call_gemini_api_structured(self, prompt: str, json_schema: Dict[str, Any], previous_error: Optional[str] = None) -> Dict[str, Any]:
+    async def _call_gemini_api_structured(self, prompt: str, json_schema: Dict[str, Any], previous_error: Optional[str] = None) -> str:
         """Call the Gemini API with structured output using the JSON schema."""
         try:
             # Configure generation to use structured output
@@ -129,46 +130,47 @@ Return only the JSON object, no additional text or formatting.
             if response.text:
                 # Extract JSON from the response
                 json_str = self._extract_json_from_response(response.text)
-                return json.loads(json_str)
+                return json_str
             else:
                 raise Exception("Empty response from Gemini API")
                 
         except Exception as e:
             raise Exception(f"Gemini API call failed: {e}")
     
-    def _parse_structured_response(self, response_data: Dict[str, Any]) -> LLMEnrichment:
+    def _parse_structured_response(self, json_str: str) -> LLMEnrichment:
         """Parse the structured response and validate it against the LLMEnrichment model."""
-        try:
-            # Always set the timestamp to when this enrichment was created
-            from datetime import datetime, timezone
-            response_data["enrichment_timestamp"] = datetime.now(timezone.utc).isoformat()
+        # Validate against Pydantic model
+        enrichments = LLMEnrichment.model_validate_json(json_str)
+        enrichments.enrichment_timestamp = datetime.now(timezone.utc).isoformat()
+        enrichments.llm_model = self.model.model_name
+        
+        return enrichments
             
-            # Always set the model name
-            response_data["llm_model"] = self.model.model_name
-            
-            # Validate against Pydantic model
-            enrichments = LLMEnrichment(**response_data)
-            
-            return enrichments
-            
-        except Exception as e:
-            raise ValidationError(f"Failed to parse structured response: {e}", model=LLMEnrichment)
     
     def _extract_json_from_response(self, response: str) -> str:
         """Extract JSON content from the LLM response, handling markdown formatting."""
+        import json
+        
         # Remove markdown code blocks if present
         if "```json" in response:
             start = response.find("```json") + 7
             end = response.find("```", start)
             if end != -1:
-                return response[start:end].strip()
-        
-        # Remove markdown code blocks without language specification
-        if "```" in response:
+                json_content = response[start:end].strip()
+            else:
+                json_content = response[start:].strip()
+        elif "```" in response:
+            # Remove markdown code blocks without language specification
             start = response.find("```") + 3
             end = response.find("```", start)
             if end != -1:
-                return response[start:end].strip()
-        
-        # Return the response as-is if no markdown formatting
-        return response.strip()
+                json_content = response[start:end].strip()
+            else:
+                json_content = response[start:].strip()
+        else:
+            # Return the response as-is if no markdown formatting
+            json_content = response.strip()
+
+        # Parse and re-serialize JSON to remove formatting whitespace
+        parsed_json = json.loads(json_content)
+        return json.dumps(parsed_json, separators=(',', ':'))
