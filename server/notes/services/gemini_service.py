@@ -1,5 +1,4 @@
 import json
-import asyncio
 from typing import Dict, Any, Optional
 from pydantic import ValidationError
 import google.generativeai as genai
@@ -13,10 +12,7 @@ class GeminiService(LLMServiceProtocol):
     """Real LLM service using Google's Gemini API for generating note enrichments."""
     
     def __init__(self, gemini_model: genai.GenerativeModel):
-        """Initialize the LLM service with a configured Gemini model."""
-        if not gemini_model:
-            raise ValueError("Gemini model is required")
-        
+        """Initialize the LLM service with a configured Gemini model."""       
         self.model = gemini_model
         
     async def generate_enrichments(self, note: Note) -> LLMEnrichment:

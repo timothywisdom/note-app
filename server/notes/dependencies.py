@@ -5,6 +5,7 @@ from .services.llm_stub_service import LLMStubService
 from .services.gemini_service import GeminiService
 from .services.notes_service import NotesService
 from .interfaces import LLMServiceProtocol
+from .models.enums import GeminiModel
 
 def get_gemini_api_key() -> str:
     """Dependency function that provides a Gemini API key."""
@@ -19,7 +20,7 @@ def get_gemini_api_key() -> str:
 def get_gemini_model(api_key: str = Depends(get_gemini_api_key)) -> genai.GenerativeModel:
     """Dependency function that provides a configured Gemini model."""
     genai.configure(api_key=api_key)
-    model_name = 'gemini-2.5-flash'
+    model_name = GeminiModel.FLASH
     return genai.GenerativeModel(model_name)
 
 def get_gemini_service(gemini_model: genai.GenerativeModel = Depends(get_gemini_model)) -> GeminiService:

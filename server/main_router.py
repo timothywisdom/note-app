@@ -1,6 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-import os
 
 router = APIRouter(
     tags=["main"],
@@ -10,8 +9,6 @@ router = APIRouter(
 @router.get("/", response_class=HTMLResponse)
 async def root():
     """Root endpoint that returns a simple HTML welcome page."""
-    # Check if debug mode is enabled
-    DEBUG_MODE = os.environ.get("DEBUG_MODE", "false").lower() == "true"
     
     return """
     <!DOCTYPE html>

@@ -1,15 +1,14 @@
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, AsyncMock
 from fastapi.testclient import TestClient
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from datetime import datetime, timezone
-from uuid import uuid4, UUID
-from typing import Dict, Any
+from uuid import uuid4
 
 from ..router import router
 from ..dependencies import get_notes_service
-from ..models import Note, NoteCreate, NoteUpdate, LLMEnrichment, Sentiment
+from ..models import Note
 from ..services.notes_service import NotesService
 
 

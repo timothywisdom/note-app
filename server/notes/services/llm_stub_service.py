@@ -1,4 +1,3 @@
-from typing import Dict, Any
 from ..models import Note, LLMEnrichment, Sentiment
 from ..interfaces import LLMServiceProtocol
 
