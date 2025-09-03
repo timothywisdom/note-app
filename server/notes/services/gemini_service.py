@@ -1,10 +1,13 @@
 import json
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import ValidationError
 import google.generativeai as genai
 from ..models import Note, LLMEnrichment, Sentiment
 from ..interfaces import LLMServiceProtocol
+
+# Maximum number of attempts for structured response generation
+MAX_ATTEMPTS = 3
 
 class GeminiService(LLMServiceProtocol):
     """Real LLM service using Google's Gemini API for generating note enrichments."""
@@ -19,6 +22,7 @@ class GeminiService(LLMServiceProtocol):
     async def generate_enrichments(self, note: Note) -> LLMEnrichment:
         """
         Generate enrichments for a note using Gemini API with function calling.
+        Includes retry logic with error feedback for structured response validation.
         
         Args:
             note: The note to generate enrichments for
@@ -27,25 +31,37 @@ class GeminiService(LLMServiceProtocol):
             LLMEnrichment: The generated enrichments
             
         Raises:
-            Exception: If enrichment generation fails
+            Exception: If enrichment generation fails after MAX_ATTEMPTS
         """
-        try:
-            # Create the prompt for analysis
-            prompt = self._create_analysis_prompt(note)
-            
-            # Get the JSON schema for structured output
-            json_schema = self._get_json_schema()
-            
-            # Generate response with structured output
-            response = await self._call_gemini_api_structured(prompt, json_schema)
-            
-            # Parse and validate the response
-            enrichments = self._parse_structured_response(response)
-            
-            return enrichments
-            
-        except Exception as e:
-            raise Exception(f"Failed to generate enrichments: {e}")
+        # Create the prompt for analysis
+        prompt = self._create_analysis_prompt(note)
+        
+        # Get the JSON schema for structured output
+        json_schema = self._get_json_schema()
+        
+        last_error = None
+        
+        for _attempt in range(MAX_ATTEMPTS):
+            try:
+                # Generate response with structured output
+                response = await self._call_gemini_api_structured(prompt, json_schema, last_error)
+                
+                # Parse and validate the response
+                enrichments = self._parse_structured_response(response)
+                
+                return enrichments
+                
+            except ValidationError as e:
+                last_error = str(e)
+                # Continue to next attempt with error feedback
+                continue
+                
+            except Exception as e:
+                # Non-validation errors should be raised immediately
+                raise Exception(f"Failed to generate enrichments: {e}")
+        
+        # If we reach here, all attempts failed with ValidationError
+        raise Exception(f"Failed to generate valid enrichments after {MAX_ATTEMPTS} attempts. Last error: {last_error}")
     
     def _create_analysis_prompt(self, note: Note) -> str:
         """Create a simple prompt for note analysis."""
@@ -71,7 +87,7 @@ Note: Do not include enrichment_timestamp or llm_model fields - these will be se
         """Generate JSON schema from the LLMEnrichment Pydantic model."""
         return LLMEnrichment.model_json_schema()
     
-    async def _call_gemini_api_structured(self, prompt: str, json_schema: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call_gemini_api_structured(self, prompt: str, json_schema: Dict[str, Any], previous_error: Optional[str] = None) -> Dict[str, Any]:
         """Call the Gemini API with structured output using the JSON schema."""
         try:
             # Configure generation to use structured output
@@ -82,9 +98,24 @@ Note: Do not include enrichment_timestamp or llm_model fields - these will be se
                 max_output_tokens=2048,
             )
             
-            # Create the structured prompt
+            # Create the structured prompt with error feedback if available
+            error_feedback = ""
+            if previous_error:
+                error_feedback = f"""
+
+IMPORTANT: The previous attempt to generate a JSON response failed with this validation error:
+{previous_error}
+
+Please carefully review the schema requirements and ensure your response exactly matches the expected format. Pay special attention to:
+- Required fields that must be present
+- Correct data types for each field
+- Proper enum values where specified
+- Correct field names and structure
+
+"""
+            
             structured_prompt = f"""
-{prompt}
+{prompt}{error_feedback}
 
 Please respond with a JSON object that matches this exact schema:
 
